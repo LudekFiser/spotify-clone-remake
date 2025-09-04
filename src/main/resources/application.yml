@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: Spotify-Clone-Remade
+  datasource:
+    url: jdbc:postgresql://localhost:5432/spotify_remake
+    username: lxdx
+    password: admin
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    show-sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+  jwt:
+    secret: ${JWT_SECRET}
+    accessTokenExpiration: 7200 # 2h #900 # 5 mins
+    refreshTokenExpiration: 604800 # 7 days
+
+  cloudinary:
+    url: ${CLOUDINARY_URL}
+
+
+  # Enable a multiPartForm to send data to SpringBoot
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 5MB
+      max-request-size: 10MB
+
+
+  # JAVA MAIL SETUP
+  mail:
+    host: smtp.seznam.cz
+    port: 465
+    username: breadbeats@seznam.cz
+    password: Hamalapapala7
+    protocol: smtp
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          from: breadbeats@seznam.cz
+logging:
+  level:
+    org:
+      springframework:
+        security: DEBUG
