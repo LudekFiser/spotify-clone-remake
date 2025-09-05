@@ -27,31 +27,28 @@ public class RateLimitAspect {
     @Around("@annotation(rateLimit)")
     public Object handleRateLimit(ProceedingJoinPoint joinPoint, RateLimit rateLimit) throws Throwable {
 
-        var currentUser = authService.getCurrentUser();
-        if (currentUser == null) {
-            throw new RuntimeException("User not authenticated");
-        }
+        // 1) Aktuální profil (vyhodí, pokud není přihlášen)
+        var profile = authService.getCurrentProfile();
 
-        // Create unique key
-        String key = rateLimit.keyPrefix() + ":" + currentUser.getId();
+        // 2) Jedinečný klíč pro limit
+        String key = rateLimit.keyPrefix() + ":" + profile.getId();
 
-        // Convert TimeUnit to Duration
-        Duration duration = Duration.of(rateLimit.timeAmount(),
-                convertToChronoUnit(rateLimit.timeUnit()));
+        // 3) Převod na Duration
+        Duration duration = Duration.of(
+                rateLimit.timeAmount(),
+                convertToChronoUnit(rateLimit.timeUnit())
+        );
 
-        // Check rate limit
+        // 4) Kontrola limitu
         if (!rateLimitService.isAllowed(key, rateLimit.requests(), duration)) {
             String timeText = formatTimeUnit(rateLimit.timeAmount(), rateLimit.timeUnit());
             throw new TooManyAttemptsException(
                     String.format("Too many requests. Maximum %d requests per %s allowed.",
                             rateLimit.requests(), timeText)
             );
-            //throw new TooManyAttemptsException(rateLimit.requests(), rateLimit.timeAmount(), rateLimit.timeUnit());
         }
 
         log.info("Rate limit check passed for key: {}", key);
-
-        // Continue with previous method
         return joinPoint.proceed();
     }
 

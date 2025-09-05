@@ -16,6 +16,9 @@ import java.time.LocalDate;
 @Data
 public class RegisterRequest {
 
+    @NotNull(message = "ROLE is required!")
+    private ROLE role;
+
     @NotBlank(message = "Name is required!")
     @Size(max = 255, message = "Name must be less than 255 characters")
     private String name;
@@ -37,8 +40,5 @@ public class RegisterRequest {
     @DateTimeFormat(pattern = "dd-MM-yyyy")
     @NotNull(message = "Date of birth is required!")
     private LocalDate dateOfBirth;
-
-    @NotNull(message = "ROLE is required!")
-    private ROLE role;
 
 }

@@ -8,5 +8,4 @@ import lombok.Data;
 public class TwoFAResponse {
 
     private String message;
-    private Long userId;
 }

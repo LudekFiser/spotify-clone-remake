@@ -1,5 +1,6 @@
 package com.example.spotifycloneremade.entity;
 
+import com.example.spotifycloneremade.enums.ROLE;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.*;
@@ -21,6 +22,23 @@ public class Profile {
     @Column(name = "id")
     private Long id;
 
+    @Column(name = "name")
+    private String name;
+
+    @Column(name = "email")
+    private String email;
+
+    @Column(name = "password")
+    private String password;
+
+    @Column(name = "role")
+    @Enumerated(EnumType.STRING)
+    private ROLE role;
+
+    @Column(name = "date_of_birth", updatable = false/*, insertable = false*/)
+    private LocalDate dateOfBirth;
+
+
     @Column(name = "is_verified")
     @Builder.Default
     private boolean isVerified = false;
@@ -37,15 +55,19 @@ public class Profile {
 
 
     @Column(name = "created_at", insertable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private LocalDateTime createdAt = LocalDateTime.now();
 
     @Column(name = "updated_at", updatable = false, insertable = false)
-    private LocalDateTime updatedAt;
+    private LocalDateTime updatedAt = LocalDateTime.now();
 
     //@OneToOne(fetch = FetchType.LAZY)
     @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "avatar_id")
     private Avatar avatar;
 
+    @OneToOne(mappedBy = "profile", cascade = CascadeType.ALL)
+    private User user;
 
+    @OneToOne(mappedBy = "profile", cascade = CascadeType.ALL)
+    private Artist artist;
 }

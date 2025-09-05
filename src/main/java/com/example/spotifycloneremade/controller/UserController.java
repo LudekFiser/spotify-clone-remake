@@ -2,8 +2,8 @@ package com.example.spotifycloneremade.controller;
 
 import com.example.spotifycloneremade.dto.auth.*;
 import com.example.spotifycloneremade.service.ImageService;
+import com.example.spotifycloneremade.service.ProfileService;
 import com.example.spotifycloneremade.service.UserEmailService;
-import com.example.spotifycloneremade.service.UserService;
 import com.example.spotifycloneremade.utils.rateLimit.RateLimit;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -20,15 +20,16 @@ import java.util.concurrent.TimeUnit;
 @Tag(name = "users")
 public class UserController {
 
-    private final UserService userService;
+    private final ProfileService profileService;
     private final UserEmailService userEmailService;
     private final ImageService imageService;
 
+
     @PostMapping("/register")
-    public ResponseEntity<RegisterResponse> register(
-           @Valid @RequestBody RegisterRequest registerRequest,
+    public ResponseEntity<ProfileResponse> register(
+            @Valid @RequestBody RegisterRequest registerRequest,
             UriComponentsBuilder uriBuilder) {
-        var user =  userService.register(registerRequest);
+        var user = profileService.register(registerRequest);
 
         var uri = uriBuilder
                 .path("/api/users/{id}")
@@ -37,14 +38,15 @@ public class UserController {
         return ResponseEntity.created(uri).body(user);
     }
 
+
     @PutMapping("/update")
     public ResponseEntity<?> updateUser(@Valid @RequestBody UpdateUserRequest req) {
-        var user = userService.updateUser(req);
+        var user = profileService.updateUser(req);
         return ResponseEntity.ok(user);
     }
 
     @PutMapping("/profile-picture")
-    public ResponseEntity<CurrentUserDto> updateProfilePicture(@RequestPart("image") MultipartFile image) {
+    public ResponseEntity<ProfileResponse> updateProfilePicture(@RequestPart("image") MultipartFile image) {
         var changeProfilePicture = imageService.changeProfilePicture(image);
         return ResponseEntity.ok().body(changeProfilePicture);
     }
@@ -57,12 +59,12 @@ public class UserController {
 
     @PostMapping("/change-password")
     public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest changePasswordRequest) {
-        userService.changePassword(changePasswordRequest);
+        profileService.changePassword(changePasswordRequest);
         return ResponseEntity.noContent().build();
     }
     @DeleteMapping("/delete")
     public ResponseEntity<Void> deleteUser(@Valid @RequestBody DeleteAccountDto otp) {
-        userService.deleteUser(otp);
+        profileService.deleteUser(otp);
         return ResponseEntity.noContent().build();
     }
 
@@ -88,7 +90,7 @@ public class UserController {
 
     @PostMapping("/verify-account")
     public ResponseEntity<Void> verifyAccount(@Valid @RequestBody VerifyAccountRequest request) {
-        userService.verifyAccount(request);
+        profileService.verifyAccount(request);
         return ResponseEntity.noContent().build();
     }
 }

@@ -26,9 +26,6 @@ public class UpdateUserRequest {
     @ValidPassword(message = "Password must contain at least one uppercase letter, one digit and one special character")
     private String password;
 
-    @NotBlank(message = "Phone number is required!")
-    private String phoneNumber;
-
     private Boolean twoFactorEmail;
 
     //private Image profileImage;

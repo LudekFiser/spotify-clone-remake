@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @Builder
 public class ProfileDto {
     private boolean isVerified;
-    private Boolean twoFactorEmail;
+    private boolean twoFactorEmail;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private ImageDto avatar;

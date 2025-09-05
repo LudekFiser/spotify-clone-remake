@@ -1,16 +1,12 @@
 package com.example.spotifycloneremade.controller;
 
-import com.example.spotifycloneremade.dto.auth.CurrentUserDto;
-import com.example.spotifycloneremade.dto.auth.LoginRequest;
-import com.example.spotifycloneremade.dto.auth.TwoFARequest;
-import com.example.spotifycloneremade.dto.auth.TwoFAResponse;
-import com.example.spotifycloneremade.entity.User;
+import com.example.spotifycloneremade.dto.auth.*;
+import com.example.spotifycloneremade.entity.Profile;
 import com.example.spotifycloneremade.jwt.JwtConfig;
 import com.example.spotifycloneremade.jwt.JwtResponse;
 import com.example.spotifycloneremade.jwt.JwtService;
-import com.example.spotifycloneremade.mapper.UserMapper;
+import com.example.spotifycloneremade.mapper.ProfileMapper;
 import com.example.spotifycloneremade.repository.ProfileRepository;
-import com.example.spotifycloneremade.repository.UserRepository;
 import com.example.spotifycloneremade.service.EmailService;
 import com.example.spotifycloneremade.utils.otp.OtpService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,6 +22,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 @RestController
@@ -38,145 +35,142 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final JwtConfig jwtConfig;
-    private final UserRepository userRepository;
-    private final UserMapper userMapper;
     private final OtpService otpService;
     private final EmailService emailService;
     private final ProfileRepository profileRepository;
+    private final ProfileMapper profileMapper;
 
+    // LOGIN
     @PostMapping("/login")
-    public ResponseEntity<?> login(
-            @Valid @RequestBody LoginRequest request,
-            HttpServletResponse response)
-    {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request,
+                                   HttpServletResponse response) {
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getEmail(),
-                        request.getPassword())
+                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
         );
-        var user = userRepository.findByEmail(request.getEmail()).orElseThrow();
-        var profile = profileRepository.findById(user.getId()).orElseThrow();
 
-        if(profile.getTwoFactorEmail()) {
-            try {
-                String code = otpService.generateOtp();
-                LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(5);
-                profile.setVerificationCode(otpService.encodeOtp(code));
-                profile.setVerificationCodeExpiration(expirationTime);
-                profileRepository.save(profile);
+        Profile profile = profileRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new RuntimeException("Profile not found"));
 
-                emailService.send2FAVerificationCode(user.getEmail(), code);
+        if (Boolean.TRUE.equals(profile.getTwoFactorEmail())) {
+            String code = otpService.generateOtp();
+            profile.setVerificationCode(otpService.encodeOtp(code));
+            profile.setVerificationCodeExpiration(LocalDateTime.now().plusMinutes(5));
+            profileRepository.save(profile);
 
-                return ResponseEntity.ok(new TwoFAResponse(
-                        "2FA Required",
-                        user.getId()
-                ));
-            } catch (Exception e) {
-                log.error("Failed to send 2FA code to user: {}", user.getEmail(), e);
-                profile.setVerificationCode(null);
-                profile.setVerificationCodeExpiration(null);
+            // pošli e-mail (sync/async dle tvé volby)
+            emailService.send2FAVerificationCode(profile.getEmail(), code);
 
-                profileRepository.save(profile);
+            // short-lived 2FA token
+            String twoFaToken = jwtService.generateTwoFaToken(profile.getId(), Duration.ofMinutes(5));
+            Cookie c = new Cookie("twoFaToken", twoFaToken);
+            c.setHttpOnly(true);
+            c.setSecure(true);
+            c.setPath("/auth/verify-2fa");   // cookie pošle jen na verify endpoint
+            c.setMaxAge(5 * 60);
+            response.addCookie(c);
 
-                throw new RuntimeException("Failed to send 2FA verification code. Please try again.");
-            }
+            return ResponseEntity.ok(new TwoFAResponse("2FA_REQUIRED"));
         }
 
-        var accessToken = jwtService.generateAccessToken(user);
-        var refreshToken = jwtService.generateRefreshToken(user);
-
-
-        var cookie = new Cookie("refreshToken", refreshToken.toString());
-        cookie.setHttpOnly(true);
-        cookie.setPath("/auth/refresh");
-        cookie.setMaxAge(jwtConfig.getRefreshTokenExpiration());  // 7 days
-        cookie.setSecure(true);
-        response.addCookie(cookie);
-
-        return ResponseEntity.ok(new JwtResponse(accessToken.toString()));
+        // bez 2FA rovnou tokeny
+        return issueTokens(response, profile);
     }
 
+    // VERIFY 2FA
     @PostMapping("/verify-2fa")
     public ResponseEntity<JwtResponse> verify2fa(
             @Valid @RequestBody TwoFARequest req,
+            @CookieValue(value = "twoFaToken", required = false) String twoFaCookie,
+            @RequestHeader(value = "X-2FA-Token", required = false) String twoFaHeader,
             HttpServletResponse response
     ) {
-        var user = userRepository.findById(req.getUserId()).orElseThrow();
-        var profile = profileRepository.findById(user.getId()).orElseThrow();
-
-        if (profile.getVerificationCode() == null) {
-            throw new RuntimeException("Invalid OTP");
-        }
-        if (profile.getVerificationCodeExpiration() == null ||
-            profile.getVerificationCodeExpiration().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("OTP expired");
-        }
-        if (!otpService.verifyOtp(req.getOtp(), profile.getVerificationCode())) {
-            throw new RuntimeException("Invalid OTP");
+        // 1) získat token (cookie má prioritu)
+        String twoFaToken = (twoFaCookie != null) ? twoFaCookie : twoFaHeader;
+        if (twoFaToken == null || twoFaToken.isBlank()) {
+            throw new RuntimeException("Missing 2FA token");
         }
 
-        // Reset 2FA State
+        // 2) vyčíst profileId a zkontrolovat scope/exp
+        Long profileId = jwtService.parseTwoFaToken(twoFaToken);
+
+        // 3) ověřit OTP
+        Profile profile = profileRepository.findById(profileId)
+                .orElseThrow(() -> new RuntimeException("Profile not found"));
+
+        if (profile.getVerificationCode() == null ||
+                profile.getVerificationCodeExpiration() == null ||
+                profile.getVerificationCodeExpiration().isBefore(LocalDateTime.now()) ||
+                !otpService.verifyOtp(req.getOtp(), profile.getVerificationCode())) {
+            throw new RuntimeException("Invalid or expired OTP");
+        }
+
+        // 4) reset OTP + zrušit 2FA cookie
         profile.setVerificationCode(null);
         profile.setVerificationCodeExpiration(null);
         profileRepository.save(profile);
 
+        Cookie clear = new Cookie("twoFaToken", "");
+        clear.setHttpOnly(true);
+        clear.setSecure(true);
+        clear.setPath("/auth/verify-2fa");
+        clear.setMaxAge(0);
+        response.addCookie(clear);
 
-        var accessToken = jwtService.generateAccessToken(user);
-        var refreshToken = jwtService.generateRefreshToken(user);
-
-
-        var cookie = new Cookie("refreshToken", refreshToken.toString());
-        cookie.setHttpOnly(true);
-        cookie.setPath("/auth/refresh");
-        cookie.setMaxAge(jwtConfig.getRefreshTokenExpiration());  // 7 days
-        cookie.setSecure(true);
-        response.addCookie(cookie);
-
-        return ResponseEntity.ok(new JwtResponse(accessToken.toString()));
+        // 5) vydat běžné tokeny
+        return issueTokens(response, profile);
     }
 
+
+    // /me – vrátí sjednocený ProfileResponse
     @GetMapping("/me")
-    public ResponseEntity<CurrentUserDto> me() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        var userId = (Long) authentication.getPrincipal();
+    public ResponseEntity<ProfileResponse> me() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
 
-        var user = userRepository.findById(userId).orElse(null);
-        if (user == null) {
-            return ResponseEntity.notFound().build();
-        }
+        Long profileId;
+        Object p = auth.getPrincipal();
+        if (p instanceof Long l)       profileId = l;
+        else if (p instanceof String s) profileId = Long.valueOf(s);
+        else if (p instanceof Integer i) profileId = i.longValue();
+        else return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
 
-        var userDto = userMapper.toUserDto(user);
+        Profile profile = profileRepository.findById(profileId).orElse(null);
+        if (profile == null) return ResponseEntity.notFound().build();
 
-        return ResponseEntity.ok(userDto);
+        return ResponseEntity.ok(profileMapper.toResponse(profile));
     }
 
+    // REFRESH – čte refresh token z cookie, vrací nový access token
     @PostMapping("/refresh")
     public ResponseEntity<JwtResponse> refresh(
-            @CookieValue(value = "refreshToken") String refreshToken
+            @CookieValue(value = "refreshToken", required = false) String refreshToken
     ) {
-        var jwt = jwtService.parseToken(refreshToken);
-        if(jwt == null || jwt.isExpired()) {
+        if (refreshToken == null || refreshToken.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        var user = userRepository.findById(jwt.getUserId()).orElseThrow();
-        var accessToken = jwtService.generateAccessToken(user);
+        var jwt = jwtService.parseToken(refreshToken);
+        if (jwt == null || jwt.isExpired()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
 
+        Profile profile = profileRepository.findById(jwt.getProfileId())
+                .orElseThrow(() -> new RuntimeException("Profile not found"));
+
+        var accessToken = jwtService.generateAccessToken(profile);
         return ResponseEntity.ok(new JwtResponse(accessToken.toString()));
     }
 
+    /* ---------- private helpers ---------- */
 
-    // helper method might use?
-
-    private ResponseEntity<JwtResponse> getResponseEntity(HttpServletResponse response, User user) {
-        var accessToken = jwtService.generateAccessToken(user);
-        var refreshToken = jwtService.generateRefreshToken(user);
-
+    private ResponseEntity<JwtResponse> issueTokens(HttpServletResponse response, Profile profile) {
+        var accessToken = jwtService.generateAccessToken(profile);
+        var refreshToken = jwtService.generateRefreshToken(profile);
 
         var cookie = new Cookie("refreshToken", refreshToken.toString());
         cookie.setHttpOnly(true);
         cookie.setPath("/auth/refresh");
-        cookie.setMaxAge(jwtConfig.getRefreshTokenExpiration());  // 7 days
+        cookie.setMaxAge(jwtConfig.getRefreshTokenExpiration());
         cookie.setSecure(true);
         response.addCookie(cookie);
 

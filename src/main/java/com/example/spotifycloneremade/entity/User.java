@@ -17,30 +17,10 @@ import java.time.*;
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
-    private Long id;
+    private Long profileId;
 
-    @Column(name = "name")
-    private String name;
-
-    @Column(name = "email")
-    private String email;
-
-    @Column(name = "password")
-    private String password;
-
-    @Column(name = "role")
-    @Enumerated(EnumType.STRING)
-    private ROLE role;
-
-    @Column(name = "phone_number")
-    private String phoneNumber;
-
-    @Column(name = "date_of_birth", updatable = false/*, insertable = false*/)
-    private LocalDate dateOfBirth;
-
-    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @MapsId
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "profile_id")
     private Profile profile;
 

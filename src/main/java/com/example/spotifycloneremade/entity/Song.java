@@ -3,66 +3,58 @@ package com.example.spotifycloneremade.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 @Getter
 @Setter
 @Entity
 @Table(name = "songs")
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Song {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
+    @Column(name = "id")
     private Long id;
 
-    @Size(max = 255)
-    @NotNull
-    @Column(name = "title", nullable = false)
+    @Column(name = "title")
     private String title;
 
-    @NotNull
-    @Column(name = "duration", nullable = false)
+    @Column(name = "duration")
     private Integer duration;
 
-    @NotNull
-    @Column(name = "release_date", nullable = false)
+    @Column(name = "release_date")
     private LocalDate releaseDate;
 
-    @Size(max = 100)
-    @Column(name = "genre", length = 100)
+    @Column(name = "genre")
     private String genre;
 
-    @NotNull
-    @ColumnDefault("0")
-    @Column(name = "plays", nullable = false)
-    private Long plays;
+    @Column(name = "plays")
+    private Integer plays;
 
-    @NotNull
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @OnDelete(action = OnDeleteAction.CASCADE)
-    @JoinColumn(name = "artist_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "artist_id")
     private Artist artist;
 
-    @Size(max = 20)
-    @NotNull
-    @ColumnDefault("'SINGLE'")
-    @Column(name = "type", nullable = false, length = 20)
+    @Column(name = "type")
     private String type;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @OnDelete(action = OnDeleteAction.SET_NULL)
     @JoinColumn(name = "song_image_id")
     private SongImage songImage;
 
     @OneToMany(mappedBy = "song")
-    private Set<SongImage> songImages = new LinkedHashSet<>();
+    private List<SongImage> songImages = new ArrayList<>();
 
 }

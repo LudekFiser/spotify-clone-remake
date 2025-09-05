@@ -1,6 +1,10 @@
 package com.example.spotifycloneremade.service;
 
+import com.example.spotifycloneremade.entity.Artist;
+import com.example.spotifycloneremade.entity.Profile;
 import com.example.spotifycloneremade.entity.User;
+import com.example.spotifycloneremade.repository.ArtistRepository;
+import com.example.spotifycloneremade.repository.ProfileRepository;
 import com.example.spotifycloneremade.repository.UserRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -11,6 +15,8 @@ import org.springframework.stereotype.Service;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final ArtistRepository artistRepository;
+    private final ProfileRepository profileRepository;
 
     /*public User getCurrentUser() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -18,16 +24,18 @@ public class AuthService {
 
         return userRepository.findById(userId).orElse(null);
     }*/
-    public User getCurrentUser() {
-        try {
-            var authentication = SecurityContextHolder.getContext().getAuthentication();
-            if (authentication == null || !authentication.isAuthenticated()) {
-                return null;
-            }
-            var userId = (Long) authentication.getPrincipal();
-            return userRepository.findById(userId).orElse(null);
-        } catch (Exception e) {
-            return null; // If Something is wrong with the token
-        }
+    public Profile getCurrentProfile() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return null;
+
+        Object p = auth.getPrincipal();
+        Long profileId = (p instanceof Long l) ? l :
+                (p instanceof String s) ? Long.valueOf(s) :
+                        (p instanceof Integer i) ? i.longValue() : null;
+        if (profileId == null) return null;
+
+        return profileRepository.findById(profileId).orElse(null);
     }
+
+
 }

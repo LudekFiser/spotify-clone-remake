@@ -4,8 +4,7 @@ import com.example.spotifycloneremade.enums.ROLE;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
@@ -20,44 +19,66 @@ import java.util.Set;
 @Setter
 @Entity
 @Table(name = "artists")
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Artist {
+
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
-    private Long id;
+    private Long profileId;
 
-    @Column(name = "name")
-    private String name;
-
-    @Column(name = "email")
-    private String email;
-
-    @Column(name = "password")
-    private String password;
-
-
-    @Column(name = "phone_number")
-    private String phoneNumber;
-
-    @Column(name = "date_of_birth")
-    private LocalDate dateOfBirth;
-
+    @MapsId
     @OneToOne(fetch = FetchType.LAZY)
-    @OnDelete(action = OnDeleteAction.CASCADE)
     @JoinColumn(name = "profile_id")
     private Profile profile;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "role")
-    private ROLE role;
-
     @Column(name = "plays")
-    private Long plays;
+    private Integer plays = 0;
 
     @Column(name = "num_of_songs")
-    private Long numOfSongs;
+    private Integer numOfSongs = 0;
 
-    @OneToMany(mappedBy = "artist")
+    @OneToMany(mappedBy = "artist", fetch = FetchType.EAGER)
+    @Builder.Default
     private List<Song> songs = new ArrayList<>();
+
+
+    /*public Integer calculateNumberOfSongs(List<Song> songs) {
+        if (songs != null) {
+            return songs.size();
+        } else {
+            return 0;
+        }
+    }*/
+    public List<Song> getSongs() {
+        if (songs == null) songs = new ArrayList<>();
+        return songs;
+    }
+    public int calculateNumberOfSongs() {
+        return getSongs().size();
+    }
+
+
+    /*public Integer calculateTotalPlays(List<Song> songs) {
+        if (songs != null) {
+            return songs.stream()
+                    .mapToInt(Song::getPlays)
+                    .sum();
+        } else {
+            return 0;
+        }
+    }*/
+    public int calculateTotalPlays() {
+        // pokud máš v Song 'plays' jako int (doporučeno), není potřeba null guard
+        return getSongs()
+                .stream()
+                .mapToInt(Song::getPlays)
+                .sum();
+    }
+
+    public static boolean isAdult(LocalDate birthDate) {
+        return birthDate.plusYears(18).isBefore(LocalDate.now()) ||
+                birthDate.plusYears(18).equals(LocalDate.now());
+    }
 
 }
