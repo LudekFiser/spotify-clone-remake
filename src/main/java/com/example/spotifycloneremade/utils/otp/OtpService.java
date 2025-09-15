@@ -1,9 +1,12 @@
 package com.example.spotifycloneremade.utils.otp;
 
+import com.example.spotifycloneremade.dto.auth.VerifyAccountRequest;
+import com.example.spotifycloneremade.entity.Profile;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
+import java.time.LocalDateTime;
 
 @Service
 public class OtpService {

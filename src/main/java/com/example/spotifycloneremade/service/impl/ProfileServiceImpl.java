@@ -1,18 +1,16 @@
 package com.example.spotifycloneremade.service.impl;
 
 import com.example.spotifycloneremade.dto.auth.*;
+import com.example.spotifycloneremade.dto.auth.resetPassword.ResetPasswordRequest;
 import com.example.spotifycloneremade.entity.Artist;
 import com.example.spotifycloneremade.entity.Profile;
+import com.example.spotifycloneremade.entity.Song;
 import com.example.spotifycloneremade.entity.User;
 import com.example.spotifycloneremade.enums.ROLE;
-import com.example.spotifycloneremade.exception.NotOldEnoughException;
-import com.example.spotifycloneremade.exception.PasswordsDoNotMatchException;
-import com.example.spotifycloneremade.exception.PasswordsMatchingException;
+import com.example.spotifycloneremade.exception.*;
 import com.example.spotifycloneremade.mapper.ProfileMapper;
-import com.example.spotifycloneremade.repository.ArtistRepository;
-import com.example.spotifycloneremade.repository.AvatarRepository;
-import com.example.spotifycloneremade.repository.ProfileRepository;
-import com.example.spotifycloneremade.repository.UserRepository;
+import com.example.spotifycloneremade.mapper.SongMapper;
+import com.example.spotifycloneremade.repository.*;
 import com.example.spotifycloneremade.service.AuthService;
 import com.example.spotifycloneremade.service.ProfileService;
 import com.example.spotifycloneremade.utils.cloudinary.CloudinaryService;
@@ -21,149 +19,327 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.io.Serial;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.Period;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
 public class ProfileServiceImpl implements ProfileService {
 
-    private final ProfileRepository profileRepo;
-    private final UserRepository userRepo;
-    private final ArtistRepository artistRepo;
-    private final AvatarRepository avatarRepo;
+    private final ProfileRepository profileRepository;
+    private final UserRepository userRepository;
+    private final ArtistRepository artistRepository;
+    private final AvatarRepository avatarRepository;
     private final ProfileMapper profileMapper;
     private final PasswordEncoder passwordEncoder;
     private final OtpService otpService;
     private final CloudinaryService cloudinaryService;
     private final AuthService authService;
+    private final SongRepository songRepository;
+    private final SongMapper songMapper;
 
-    /* ===== helpers ===== */
 
     private boolean emailAlreadyUsed(String email) {
-        // email je teď v PROFILES
-        return profileRepo.existsByEmail(email);
+        return profileRepository.existsByEmail(email);
     }
 
-    private boolean isAdult(LocalDate dob) {
-        return Period.between(dob, LocalDate.now()).getYears() >= 18;
-    }
-
-    /* ===== register (pro USER i ARTIST) ===== */
 
     @Override
     public ProfileResponse register(RegisterRequest req) {
-        if (emailAlreadyUsed(req.getEmail())) throw new IllegalArgumentException("Email is already used");
-        if (!isAdult(req.getDateOfBirth()))  throw new NotOldEnoughException();
+        if (emailAlreadyUsed(req.getEmail())) {
+            throw new IllegalArgumentException("Email is already used");
+        }
+        if (!Profile.isAdult(req.getDateOfBirth()))  {
+            throw new NotOldEnoughException();
+        }
 
-        // 1) Profile
         Profile profile = profileMapper.toEntity(req);
         profile.setPassword(passwordEncoder.encode(req.getPassword()));
-        profile = profileRepo.save(profile);
+        profile = profileRepository.save(profile);
 
-        // 2) Detail podle role (shared PK = profile.id)
         if (req.getRole() == ROLE.ARTIST) {
             var artist = new Artist();
             artist.setProfile(profile);
             artist.setPlays(0);
             artist.setNumOfSongs(0);
-            artistRepo.save(artist);
-            profile.setArtist(artist); // aby mapper viděl navázání
+            artistRepository.save(artist);
+            profile.setArtist(artist);
         } else {
             var user = new User();
             user.setProfile(profile);
-            userRepo.save(user);
+            userRepository.save(user);
             profile.setUser(user);
         }
 
-        return profileMapper.toResponse(profile); // sjednocený response
+        return profileMapper.toResponse(profile);
     }
 
-    /* ===== update profilu ===== */
 
     @Override
     public ProfileResponse updateUser(UpdateUserRequest req) {
-        Profile me = authService.getCurrentProfile();
+        Profile currentProfile = authService.getCurrentProfile();
 
-        if (req.getName() != null)        me.setName(req.getName());
-        if (req.getEmail() != null) {
-            if (!me.getEmail().equals(req.getEmail()) && emailAlreadyUsed(req.getEmail()))
-                throw new IllegalArgumentException("Email is already used");
-            me.setEmail(req.getEmail());
+        if (req.getName() != null) {
+            currentProfile.setName(req.getName());
         }
-        if (req.getTwoFactorEmail() != null) me.setTwoFactorEmail(req.getTwoFactorEmail());
+        if (req.getEmail() != null) {
+            if (!currentProfile.getEmail().equals(req.getEmail()) && emailAlreadyUsed(req.getEmail()))
+                throw new IllegalArgumentException("Email is already used");
+            currentProfile.setEmail(req.getEmail());
+        }
+        if (req.getTwoFactorEmail() != null) currentProfile.setTwoFactorEmail(req.getTwoFactorEmail());
 
-        me.setUpdatedAt(LocalDateTime.now());
-        profileRepo.save(me);
+        currentProfile.setUpdatedAt(LocalDateTime.now());
+        profileRepository.save(currentProfile);
 
-        return profileMapper.toResponse(me);
+        return profileMapper.toResponse(currentProfile);
     }
 
-    /* ===== smazání účtu ===== */
 
     @Override
     public void deleteUser(DeleteAccountDto otp) {
-        Profile me = authService.getCurrentProfile();
+        Profile currentProfile = authService.getCurrentProfile();
 
         // OTP kontrola
-        if (me.getVerificationCode() == null) throw new RuntimeException("Invalid OTP");
-        if (!otpService.verifyOtp(otp.getOtp(), me.getVerificationCode())) throw new RuntimeException("Invalid OTP");
-        if (me.getVerificationCodeExpiration().isBefore(LocalDateTime.now())) throw new RuntimeException("OTP expired");
-
-        // smazat avatar v cloudu (pokud je)
-        if (me.getAvatar() != null) {
-            var image = me.getAvatar();
-            cloudinaryService.deleteImageByPublicId(image.getPublicId());
-            me.setAvatar(null);
-            profileRepo.save(me);
-            avatarRepo.delete(image);
+        if (currentProfile.getVerificationCode() == null) {
+            throw new RuntimeException("Invalid OTP");
+        }
+        if (!otpService.verifyOtp(otp.getOtp(), currentProfile.getVerificationCode())) {
+            throw new RuntimeException("Invalid OTP");
+        }
+        if (currentProfile.getVerificationCodeExpiration().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("OTP expired");
         }
 
-        // smazání profilu → díky FK ON DELETE CASCADE spadnou User/Artist
-        profileRepo.delete(me);
+        if (currentProfile.getAvatar() != null) {
+            var image = currentProfile.getAvatar();
+            cloudinaryService.deleteImageByPublicId(image.getPublicId());
+            currentProfile.setAvatar(null);
+            profileRepository.save(currentProfile);
+            avatarRepository.delete(image);
+        }
+
+        profileRepository.delete(currentProfile);
     }
 
-    /* ===== změna hesla ===== */
+    @Override
+    public void forgotPassword(ResetPasswordRequest req) {
+
+        if(!req.getNewPassword().equals(req.getRepeatNewPassword())) {
+            throw new PasswordResetReqNotMatching();
+        }
+
+        Profile profile = profileRepository.findByEmail(req.getEmail())
+                .orElseThrow(UserNotFoundException::new);
+
+        if (profile.getVerificationCode() == null ||
+                profile.getVerificationCodeExpiration() == null ||
+                profile.getVerificationCodeExpiration().isBefore(LocalDateTime.now()) ||
+                !otpService.verifyOtp(req.getOtp(), profile.getVerificationCode())) {
+            throw new RuntimeException("Invalid or expired OTP");
+        }
+
+
+        profile.setPassword(passwordEncoder.encode(req.getNewPassword()));
+        profile.setVerificationCode(null);
+        profile.setVerificationCodeExpiration(null);
+        profileRepository.save(profile);
+    }
+
+    /*@Override
+    public List<SearchProfileResponse> findAllProfiles() {
+        return profileRepository.findAll()
+                .stream()
+                .map(profileMapper::toSearchResponse)
+                .toList();
+    }
+
+    @Override
+    public List<SearchProfileResponse> findAllArtists() {
+        return profileRepository.findAllByRole(ROLE.ARTIST)
+                .stream()
+                .map(profileMapper::toSearchResponse)
+                .toList();
+    }
+
+    @Override
+    public List<SearchProfileResponse> findAllUsers() {
+        return profileRepository.findAllByRole(ROLE.USER)
+                .stream()
+                .map(profileMapper::toSearchResponse)
+                .toList();
+    }*/
+    /*@Override
+    public List<SearchProfileResponse> searchProfiles(ROLE role, String name) {
+        List<Profile> profiles = profileRepository.findByRoleAndNameContainingIgnoreCase(role, name);
+        return profiles.stream()
+                .map(profileMapper::toSearchResponse)
+                .toList();
+    }*/
+
+    /*
+    @Override
+    public SearchResultResponse searchProfiles(ROLE role, String artistName, String songName) {
+        List<Profile> profiles;
+        List<Song> songs;
+
+        boolean isArtistNameEmpty = (artistName == null || artistName.isBlank());
+        boolean isSongNameEmpty = (songName == null || songName.isBlank());
+
+        if (isArtistNameEmpty && isSongNameEmpty) {
+            profiles = profileRepository.findByRoleOnly(role);
+            // se songy nic nedělej → nech prázdné
+            songs = profiles.stream()
+                    .filter(p -> p.getArtist() != null)
+                    .flatMap(p -> p.getArtist().getSongs().stream())
+                    .distinct()
+                    .toList();
+        } else {
+            profiles = profileRepository.findByRoleAndNameAndSong(role, artistName, songName);
+
+            if (!isSongNameEmpty) {
+                songs = songRepository.findByTitle(songName);
+            } else {
+                songs = profiles.stream()
+                        .filter(p -> p.getArtist() != null)
+                        .flatMap(p -> p.getArtist().getSongs().stream())
+                        .distinct()
+                        .toList();
+            }
+        }
+
+        return SearchResultResponse.builder()
+                .profiles(profiles.stream().map(profileMapper::toSearchResponse).toList())
+                .songs(songs.stream().map(songMapper::toSongSummary).toList())
+                .build();
+    }*/
+    @Override
+    public SearchResultResponse searchProfiles(ROLE role, String artistName, String songName) {
+        List<Profile> profiles = new ArrayList<>();
+        List<Song> songs = new ArrayList<>();
+
+        boolean isArtistNameEmpty = (artistName == null || artistName.isBlank());
+        boolean isSongNameEmpty = (songName == null || songName.isBlank());
+
+        // Pokud je zadán artist name
+        if (!isArtistNameEmpty) {
+            profiles = profileRepository.findByRoleAndName(role, artistName);
+
+            // pokud není hledání podle songName, přidej jejich songy
+            if (isSongNameEmpty) {
+                songs = profiles.stream()
+                        .filter(p -> p.getArtist() != null)
+                        .flatMap(p -> p.getArtist().getSongs().stream())
+                        .distinct()
+                        .toList();
+            }
+        }
+
+        // Pokud je zadán song name
+        if (!isSongNameEmpty) {
+            //songs = songRepository.findByTitle(songName);
+            songs = songRepository.findByTitleWithArtistAndImage(songName);
+
+
+            // Najdi i profily vlastnící nalezené songy
+            List<Profile> songOwners = songs.stream()
+                    .map(Song::getArtist)
+                    .filter(Objects::nonNull)
+                    .map(Artist::getProfile)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .toList();
+
+            for (Profile p : songOwners) {
+                if (!profiles.contains(p)) {
+                    profiles.add(p);
+                }
+            }
+        }
+
+        // Když není zadáno nic
+        if (isArtistNameEmpty && isSongNameEmpty) {
+            profiles = profileRepository.findByRoleOnly(role);
+
+            songs = profiles.stream()
+                    .filter(p -> p.getArtist() != null)
+                    .flatMap(p -> p.getArtist().getSongs().stream())
+                    .distinct()
+                    .toList();
+        }
+
+        return SearchResultResponse.builder()
+                .profiles(profiles.stream().map(profileMapper::toSearchResponse).toList())
+                .songs(songs.stream().map(songMapper::toSongSummary).toList())
+                .build();
+    }
+
+
+
+
+
+
+
+
+
+    @Override
+    public SearchProfileResponse findByProfileId(Long id) {
+        var profile = profileRepository.findById(id)
+                .orElseThrow(UserNotFoundException::new);
+        return profileMapper.toSearchResponse(profile);
+    }
+
 
     @Override
     public void changePassword(ChangePasswordRequest req) {
-        Profile me = authService.getCurrentProfile();
+        Profile currentProfile = authService.getCurrentProfile();
 
-        // heslo je v PROFILES
-        if (!passwordEncoder.matches(req.getOldPassword(), me.getPassword()))
+        if (!passwordEncoder.matches(req.getOldPassword(), currentProfile.getPassword()))
             throw new PasswordsDoNotMatchException();
-        if (passwordEncoder.matches(req.getNewPassword(), me.getPassword()))
+        if (passwordEncoder.matches(req.getNewPassword(), currentProfile.getPassword()))
             throw new PasswordsMatchingException();
 
-        // OTP kontrola
-        if (me.getVerificationCode() == null) throw new RuntimeException("Invalid OTP");
-        if (!otpService.verifyOtp(req.getOtp(), me.getVerificationCode())) throw new RuntimeException("Invalid OTP");
-        if (me.getVerificationCodeExpiration().isBefore(LocalDateTime.now())) throw new RuntimeException("OTP expired");
+        // OTP validation
+        if (currentProfile.getVerificationCode() == null) {
+            throw new RuntimeException("Invalid OTP");
+        }
+        if (!otpService.verifyOtp(req.getOtp(), currentProfile.getVerificationCode())) {
+            throw new RuntimeException("Invalid OTP");
+        }
+        if (currentProfile.getVerificationCodeExpiration().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("OTP expired");
+        }
 
-        me.setPassword(passwordEncoder.encode(req.getNewPassword()));
-        me.setVerificationCode(null);
-        me.setVerificationCodeExpiration(null);
-        profileRepo.save(me);
+        currentProfile.setPassword(passwordEncoder.encode(req.getNewPassword()));
+        currentProfile.setVerificationCode(null);
+        currentProfile.setVerificationCodeExpiration(null);
+        profileRepository.save(currentProfile);
     }
 
-    /* ===== verifikace účtu ===== */
 
     @Override
     public void verifyAccount(VerifyAccountRequest req) {
-        Profile me = authService.getCurrentProfile();
+        Profile currentProfile = authService.getCurrentProfile();
 
-        if (me.isVerified()) throw new RuntimeException("Account is already verified");
-        if (me.getVerificationCode() == null) throw new RuntimeException("Invalid OTP");
-        if (!otpService.verifyOtp(req.getOtp(), me.getVerificationCode())) throw new RuntimeException("Invalid OTP");
-        if (me.getVerificationCodeExpiration().isBefore(LocalDateTime.now())) throw new RuntimeException("OTP expired");
+        if (currentProfile.isVerified()) {
+            throw new RuntimeException("Account is already verified");
+        }
+        if (currentProfile.getVerificationCode() == null) {
+            throw new RuntimeException("Invalid OTP");
+        }
+        if (!otpService.verifyOtp(req.getOtp(), currentProfile.getVerificationCode())) {
+            throw new RuntimeException("Invalid OTP");
+        }
+        if (currentProfile.getVerificationCodeExpiration().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("OTP expired");
+        }
 
-        me.setVerificationCode(null);
-        me.setVerificationCodeExpiration(null);
-        me.setVerified(true);
-        profileRepo.save(me);
+        currentProfile.setVerificationCode(null);
+        currentProfile.setVerificationCodeExpiration(null);
+        currentProfile.setVerified(true);
+        profileRepository.save(currentProfile);
     }
 }
 

@@ -1,18 +1,20 @@
 package com.example.spotifycloneremade.entity;
 
+import com.example.spotifycloneremade.enums.SongType;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.*;
-import org.hibernate.annotations.ColumnDefault;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
+
+import org.apache.tika.metadata.Metadata;
+import org.apache.tika.parser.AutoDetectParser;
+import org.apache.tika.parser.ParseContext;
+import org.apache.tika.sax.BodyContentHandler;
+import org.xml.sax.ContentHandler;
 
 @Getter
 @Setter
@@ -31,6 +33,12 @@ public class Song {
     @Column(name = "title")
     private String title;
 
+    @Column(name = "url")
+    private String url;
+
+    @Column(name = "public_id")
+    private String publicId;
+
     @Column(name = "duration")
     private Integer duration;
 
@@ -41,20 +49,55 @@ public class Song {
     private String genre;
 
     @Column(name = "plays")
-    private Integer plays;
+    private Integer plays = 0;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "artist_id")
     private Artist artist;
 
     @Column(name = "type")
-    private String type;
+    @Enumerated(EnumType.STRING)
+    private SongType type;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    /*@ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "song_image_id")
+    private SongImage songImage;*/
+    @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "song_image_id")
     private SongImage songImage;
 
     @OneToMany(mappedBy = "song")
     private List<SongImage> songImages = new ArrayList<>();
+
+
+    public static int getDurationFromMultipartFile(MultipartFile file) {
+        try (InputStream stream = file.getInputStream()) {
+            Metadata metadata = new Metadata();
+            ContentHandler handler = new BodyContentHandler();
+            AutoDetectParser parser = new AutoDetectParser();
+            ParseContext context = new ParseContext();
+
+            parser.parse(stream, handler, metadata, context);
+
+            //System.out.println("🔍 Metadata from audio file:");
+            /*for (String name : metadata.names()) {
+                System.out.println(name + " = " + metadata.get(name));
+            }*/
+
+            String durationStr = metadata.get("xmpDM:duration");
+            if (durationStr != null) {
+                double durationSeconds = Double.parseDouble(durationStr.replace(",", "."));
+                return (int) durationSeconds;
+            } else {
+                System.err.println("⚠️ Duration metadata not found.");
+                return 0;
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to extract duration", e);
+        }
+    }
+
+
 
 }

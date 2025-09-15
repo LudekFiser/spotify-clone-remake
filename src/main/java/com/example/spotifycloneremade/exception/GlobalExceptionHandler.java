@@ -72,6 +72,13 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(PasswordResetReqNotMatching.class)
+    public ResponseEntity<ErrorDto> handlePasswordResetReqNotMatchingException() {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                new ErrorDto("Passwords do not Match!")
+        );
+    }
+
     @ExceptionHandler(NotOldEnoughException.class)
     public ResponseEntity<ErrorDto> handleNotOldEnoughException() {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(

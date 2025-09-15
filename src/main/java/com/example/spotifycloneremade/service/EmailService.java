@@ -193,4 +193,13 @@ public class EmailService {
         mailSender.send(message);
     }
 
+    public void sendForgotPasswordCode(String toEmail, String otp) {
+        var message = new SimpleMailMessage();
+        message.setFrom(sentBy);
+        message.setTo(toEmail);
+        message.setSubject("Forgotten password code");
+        message.setText("This is your Forgotten password code! ---->" + otp + "<----\n\nUse this CODE to proceed with resetting your password");
+        mailSender.send(message);
+    }
+
 }

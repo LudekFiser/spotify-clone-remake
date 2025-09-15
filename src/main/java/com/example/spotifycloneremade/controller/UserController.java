@@ -1,6 +1,9 @@
 package com.example.spotifycloneremade.controller;
 
 import com.example.spotifycloneremade.dto.auth.*;
+import com.example.spotifycloneremade.dto.auth.resetPassword.ResetPasswordRequest;
+import com.example.spotifycloneremade.dto.auth.resetPassword.SendForgotPasswordRequest;
+import com.example.spotifycloneremade.enums.ROLE;
 import com.example.spotifycloneremade.service.ImageService;
 import com.example.spotifycloneremade.service.ProfileService;
 import com.example.spotifycloneremade.service.UserEmailService;
@@ -12,12 +15,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.UriComponentsBuilder;
+
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/users")
 @RequiredArgsConstructor
 @Tag(name = "users")
+@CrossOrigin(origins = "http://localhost:5173")
 public class UserController {
 
     private final ProfileService profileService;
@@ -52,9 +58,11 @@ public class UserController {
     }
 
     @DeleteMapping("/profile-picture/delete")
-    public ResponseEntity<Void> deleteProfilePicture() {
-        imageService.deleteProfilePicture();
-        return ResponseEntity.ok().build();
+    public ResponseEntity<ProfileResponse> deleteProfilePicture() {
+       /* imageService.deleteProfilePicture();
+        return ResponseEntity.ok().build();*/
+        var updated = imageService.deleteProfilePicture();
+        return ResponseEntity.ok(updated);
     }
 
     @PostMapping("/change-password")
@@ -76,7 +84,6 @@ public class UserController {
 
     @PostMapping("/send-password-reset-code")  // might also be forgot-password endpoint
     public ResponseEntity<Void> sendPasswordResetCode() {
-        //userService.sendPasswordResetCode();
         userEmailService.sendPasswordResetCode();
         return ResponseEntity.noContent().build();
     }
@@ -93,4 +100,59 @@ public class UserController {
         profileService.verifyAccount(request);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/send-forgot-password-code")
+    public ResponseEntity<Void> sendForgotPasswordCode(@Valid @RequestBody SendForgotPasswordRequest req) {
+        userEmailService.sendForgotPasswordCode(req);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest req) {
+        profileService.forgotPassword(req);
+        return ResponseEntity.noContent().build();
+    }
+
+
+    /*@GetMapping("/all-profiles")
+    public ResponseEntity<List<SearchProfileResponse>> getAllProfiles() {
+        return ResponseEntity.ok().body(profileService.findAllProfiles());
+    }
+
+    @GetMapping("/all-users")
+    public ResponseEntity<List<SearchProfileResponse>> getUsers() {
+        return ResponseEntity.ok(profileService.findAllUsers());
+    }
+
+    @GetMapping("/all-artists")
+    public ResponseEntity<List<SearchProfileResponse>> getArtists() {
+        return ResponseEntity.ok(profileService.findAllArtists());
+    }*/
+
+    /*@GetMapping("/search")
+    public ResponseEntity<List<SearchResultResponse>> searchProfiles(
+            @RequestParam(required = false) ROLE role,
+            @RequestParam(required = false) String artistName,
+            @RequestParam(required = false) String songName
+    ) {
+        return ResponseEntity.ok(profileService.searchProfiles(role, artistName, songName));
+    }*/
+    @GetMapping("/search")
+    public ResponseEntity<SearchResultResponse> searchProfiles(
+            @RequestParam(required = false) ROLE role,
+            @RequestParam(required = false) String artistName,
+            @RequestParam(required = false) String songName
+    ) {
+        return ResponseEntity.ok(profileService.searchProfiles(role, artistName, songName));
+    }
+
+    @GetMapping("/{userId}")
+    public ResponseEntity<SearchProfileResponse> getUser(@PathVariable Long userId) {
+        //return profileService.findByProfileId(userId);
+        var profile = profileService.findByProfileId(userId);
+        //return ResponseEntity.ok(profileService.findByProfileId(userId));
+        return ResponseEntity.ok(profile);
+    }
+
+
 }

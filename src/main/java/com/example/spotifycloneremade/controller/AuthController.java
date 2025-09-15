@@ -16,11 +16,13 @@ import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -51,10 +53,11 @@ public class AuthController {
         Profile profile = profileRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("Profile not found"));
 
-        if (Boolean.TRUE.equals(profile.getTwoFactorEmail())) {
+        if (profile.isTwoFactorEmail()) {
             String code = otpService.generateOtp();
+            LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(5);
             profile.setVerificationCode(otpService.encodeOtp(code));
-            profile.setVerificationCodeExpiration(LocalDateTime.now().plusMinutes(5));
+            profile.setVerificationCodeExpiration(expirationTime);
             profileRepository.save(profile);
 
             // pošli e-mail (sync/async dle tvé volby)
@@ -85,7 +88,14 @@ public class AuthController {
             HttpServletResponse response
     ) {
         // 1) získat token (cookie má prioritu)
-        String twoFaToken = (twoFaCookie != null) ? twoFaCookie : twoFaHeader;
+        //String twoFaToken = (twoFaCookie != null) ? twoFaCookie : twoFaHeader;
+        String twoFaToken;
+        if (twoFaCookie != null) {
+            twoFaToken = twoFaCookie;
+        } else {
+            twoFaToken = twoFaHeader;
+        }
+
         if (twoFaToken == null || twoFaToken.isBlank()) {
             throw new RuntimeException("Missing 2FA token");
         }
@@ -125,20 +135,17 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<ProfileResponse> me() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
 
-        Long profileId;
-        Object p = auth.getPrincipal();
-        if (p instanceof Long l)       profileId = l;
-        else if (p instanceof String s) profileId = Long.valueOf(s);
-        else if (p instanceof Integer i) profileId = i.longValue();
-        else return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-
-        Profile profile = profileRepository.findById(profileId).orElse(null);
-        if (profile == null) return ResponseEntity.notFound().build();
+        var profileId = (Long) auth.getPrincipal();
+        var profile = profileRepository.findById(profileId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
 
         return ResponseEntity.ok(profileMapper.toResponse(profile));
     }
+
 
     // REFRESH – čte refresh token z cookie, vrací nový access token
     @PostMapping("/refresh")
@@ -163,7 +170,7 @@ public class AuthController {
 
     /* ---------- private helpers ---------- */
 
-    private ResponseEntity<JwtResponse> issueTokens(HttpServletResponse response, Profile profile) {
+    /*private ResponseEntity<JwtResponse> issueTokens(HttpServletResponse response, Profile profile) {
         var accessToken = jwtService.generateAccessToken(profile);
         var refreshToken = jwtService.generateRefreshToken(profile);
 
@@ -175,5 +182,21 @@ public class AuthController {
         response.addCookie(cookie);
 
         return ResponseEntity.ok(new JwtResponse(accessToken.toString()));
+    }*/
+    private ResponseEntity<JwtResponse> issueTokens(HttpServletResponse response, Profile profile) {
+        var accessToken  = jwtService.generateAccessToken(profile);
+        var refreshToken = jwtService.generateRefreshToken(profile);
+
+        ResponseCookie cookie = ResponseCookie.from("refreshToken", refreshToken.toString())
+                .httpOnly(true)
+                .secure(true)             // vyžaduje HTTPS / nebo localhost je povolen
+                .sameSite("None")         // ← důležité pro cross-site
+                .path("/auth/refresh")    // ← budeš tím pádem mazat se stejným path
+                .maxAge(jwtConfig.getRefreshTokenExpiration())
+                .build();
+
+        response.addHeader("Set-Cookie", cookie.toString());
+        return ResponseEntity.ok(new JwtResponse(accessToken.toString()));
     }
+
 }

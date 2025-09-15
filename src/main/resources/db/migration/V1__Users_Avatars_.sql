@@ -22,7 +22,7 @@ CREATE TABLE profiles (
 );
 
 ALTER TABLE profiles ADD CONSTRAINT profiles_email_key UNIQUE (email);
-
+CREATE INDEX idx_profiles_lower_name ON profiles (LOWER(name));
 -- ===========================================
 -- 1. AVATARS – historie avatarů + aktuální přes profiles.avatar_id
 -- ===========================================

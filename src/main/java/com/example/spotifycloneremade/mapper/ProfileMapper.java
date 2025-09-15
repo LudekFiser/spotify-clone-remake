@@ -6,12 +6,17 @@ import com.example.spotifycloneremade.entity.Artist;
 import com.example.spotifycloneremade.entity.Avatar;
 import com.example.spotifycloneremade.entity.Profile;
 import com.example.spotifycloneremade.entity.Song;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 @Component
+@RequiredArgsConstructor
 public class ProfileMapper {
+
+    private final ImageMapper imageMapper;
+    private final ArtistMapper artistMapper;
 
     public Profile toEntity(RegisterRequest req) {
         Profile p = new Profile();
@@ -32,43 +37,44 @@ public class ProfileMapper {
                 .email(profile.getEmail())
                 .role(profile.getRole())
                 .verified(profile.isVerified())
-                .twoFactorEmail(profile.getTwoFactorEmail())
+                .twoFactorEmail(profile.isTwoFactorEmail())
                 .dateOfBirth(profile.getDateOfBirth())
                 .createdAt(profile.getCreatedAt())
                 .updatedAt(profile.getUpdatedAt())
-                .avatar(toImageDto(profile.getAvatar()));
+                .avatar(imageMapper.toImageDto(profile.getAvatar()));
 
         if (profile.getArtist() != null) {
-            b.artist(toArtistDetails(profile.getArtist()));
+            b.artist(artistMapper.toArtistResponse(profile.getArtist()));
         }
 
         return b.build();
     }
 
-    private ImageDto toImageDto(Avatar a) {
-        return a == null ? null : new ImageDto(a.getImageUrl(), a.getPublicId());
-    }
-
-    private ArtistResponse toArtistDetails(Artist artist) {
-        // getSongs() u tebe NIKDY nevrátí null → stream -> toList() dá [] když nic není
-        var songSummaries = artist.getSongs()
-                .stream()
-                .map(this::toSongSummary)
-                .toList();
-
-        return ArtistResponse.builder()
-                .plays(artist.calculateTotalPlays())      // nebo artist.getPlays()
-                .numOfSongs(artist.calculateNumberOfSongs()) // nebo artist.getNumOfSongs()
-                .songs(songSummaries)                     // vždy seznam (prázdný/naplněný)
+    /*public SearchProfileResponse toSearchResponse(Profile profile) {
+        return SearchProfileResponse.builder()
+                .id(profile.getId())
+                .name(profile.getName())
+                .email(profile.getEmail())
+                .role(profile.getRole())
+                .dateOfBirth(profile.getDateOfBirth())
+                .createdAt(profile.getCreatedAt())
+                .avatar(imageMapper.toImageDto(profile.getAvatar()))
+                .artist(profile.getArtist() != null ? artistMapper.toArtistResponse(profile.getArtist()) : null)
+                .build();
+    }*/
+    public SearchProfileResponse toSearchResponse(Profile profile) {
+        return SearchProfileResponse.builder()
+                .id(profile.getId())
+                .name(profile.getName())
+                .email(profile.getEmail())
+                .role(profile.getRole())
+                .dateOfBirth(profile.getDateOfBirth())
+                .createdAt(profile.getCreatedAt())
+                .avatar(imageMapper.toImageDto(profile.getAvatar()))
+                .artist(profile.getArtist() != null ? artistMapper.toArtistPreviewResponse(profile.getArtist()) : null)
                 .build();
     }
 
-    private SongSummaryDto toSongSummary(Song s) {
-        return SongSummaryDto.builder()
-                .id(s.getId())
-                .title(s.getTitle())
-                .duration(s.getDuration())
-                .build();
-    }
+
 }
 

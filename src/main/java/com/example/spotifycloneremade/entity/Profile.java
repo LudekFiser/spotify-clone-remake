@@ -7,6 +7,7 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 
 @Getter
 @Setter
@@ -45,7 +46,7 @@ public class Profile {
 
     @Column(name = "two_factor_email")
     @Builder.Default
-    private Boolean twoFactorEmail = false;
+    private boolean twoFactorEmail = false;
 
     @Column(name = "verification_code")
     private String verificationCode;
@@ -70,4 +71,9 @@ public class Profile {
 
     @OneToOne(mappedBy = "profile", cascade = CascadeType.ALL)
     private Artist artist;
+
+
+    public static boolean isAdult(LocalDate dob) {
+        return Period.between(dob, LocalDate.now()).getYears() >= 18;
+    }
 }

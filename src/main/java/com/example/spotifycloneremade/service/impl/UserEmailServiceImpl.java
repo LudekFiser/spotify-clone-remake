@@ -1,6 +1,8 @@
 package com.example.spotifycloneremade.service.impl;
 
+import com.example.spotifycloneremade.dto.auth.resetPassword.SendForgotPasswordRequest;
 import com.example.spotifycloneremade.entity.Profile;
+import com.example.spotifycloneremade.exception.UserNotFoundException;
 import com.example.spotifycloneremade.repository.ProfileRepository;
 import com.example.spotifycloneremade.repository.UserRepository;
 import com.example.spotifycloneremade.service.AuthService;
@@ -84,5 +86,27 @@ public class UserEmailServiceImpl implements UserEmailService {
             throw new RuntimeException("Unable to send account deletion code to " + me.getEmail(), ex);
         }
     }
+
+    @Override
+    public void sendForgotPasswordCode(SendForgotPasswordRequest req) {
+        var profile = profileRepository.findByEmail(req.getEmail())
+                .orElseThrow(UserNotFoundException::new);
+
+        // vygeneruj OTP
+        String otp = otpService.generateOtp();
+        LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(5);
+
+        // ulož OTP k profilu
+        profile.setVerificationCode(otpService.encodeOtp(otp));
+        profile.setVerificationCodeExpiration(expirationTime);
+        profileRepository.save(profile);
+
+        try {
+            emailService.sendForgotPasswordCode(req.getEmail(), otp);
+        } catch (Exception ex) {
+            throw new RuntimeException("Unable to send forgot password code to " + req.getEmail(), ex);
+        }
+    }
+
 
 }

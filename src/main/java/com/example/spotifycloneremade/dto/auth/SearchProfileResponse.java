@@ -10,18 +10,16 @@ import java.time.LocalDateTime;
 
 @Data
 @Builder
-public class ProfileResponse {
+public class SearchProfileResponse {
 
     private Long id;
     private String name;
     private String email;
     private ROLE role;
-    private Boolean verified;
-    private Boolean twoFactorEmail;
+
     private LocalDate dateOfBirth;
     private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-    private ImageDto avatar;
 
+    private ImageDto avatar;
     private ArtistResponse artist;
 }

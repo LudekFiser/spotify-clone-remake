@@ -33,9 +33,6 @@ public class RegisterRequest {
     @ValidPassword(message = "Password must contain at least one uppercase letter, one digit and one special character")
     private String password;
 
-    @NotBlank(message = "Phone number is required!")
-    private String phoneNumber;
-
     @JsonFormat(pattern = "dd-MM-yyyy")
     @DateTimeFormat(pattern = "dd-MM-yyyy")
     @NotNull(message = "Date of birth is required!")

@@ -14,4 +14,5 @@ public class SongSummaryDto {
     private Integer duration;
     private LocalDate releaseDate;
     private Integer plays;
+    private String url;
 }

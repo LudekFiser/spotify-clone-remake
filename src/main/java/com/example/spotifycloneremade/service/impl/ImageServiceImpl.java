@@ -31,7 +31,7 @@ public class ImageServiceImpl implements ImageService {
     @Override
     @Transactional
     public ProfileResponse changeProfilePicture(MultipartFile image) {
-        Profile me = authService.getCurrentProfile();
+        Profile currentUser = authService.getCurrentProfile();
 
         String uploadedPublicId = null;
 
@@ -41,13 +41,13 @@ public class ImageServiceImpl implements ImageService {
 
         try {
             // 1) pokud má profil avatar, smaž ho (cloud + DB) a odpoj
-            if (me.getAvatar() != null) {
-                Avatar old = me.getAvatar();
+            if (currentUser.getAvatar() != null) {
+                Avatar old = currentUser.getAvatar();
                 try {
                     cloudinaryService.deleteImageByPublicId(old.getPublicId());
                 } catch (Exception ignore) { /* best effort */ }
-                me.setAvatar(null);
-                profileRepository.save(me);
+                currentUser.setAvatar(null);
+                profileRepository.save(currentUser);
                 avatarRepository.delete(old);
             }
 
@@ -55,13 +55,13 @@ public class ImageServiceImpl implements ImageService {
             UploadedImageDto uploaded = cloudinaryService.uploadImage(image, "avatars");
             uploadedPublicId = uploaded.getPublicId();
 
-            Avatar newAvatar = cloudinaryService.buildProfileImage(uploaded, me);
+            Avatar newAvatar = cloudinaryService.buildProfileImage(uploaded, currentUser);
             avatarRepository.save(newAvatar);    // persistneme obrázek
-            me.setAvatar(newAvatar);             // nastavíme aktuální avatar na profilu
-            profileRepository.save(me);          // uložíme profil
+            currentUser.setAvatar(newAvatar);             // nastavíme aktuální avatar na profilu
+            profileRepository.save(currentUser);          // uložíme profil
 
             // 3) response přes sjednocený mapper
-            return profileMapper.toResponse(me);
+            return profileMapper.toResponse(currentUser);
 
         } catch (RuntimeException ex) {
             // DB fail -> zkus smazat v Cloudinary (best effort)
@@ -76,12 +76,12 @@ public class ImageServiceImpl implements ImageService {
         }
     }
 
-    @Override
+    /*@Override
     @Transactional
     public void deleteProfilePicture() {
-        Profile me = authService.getCurrentProfile();
+        Profile currentUser = authService.getCurrentProfile();
 
-        Avatar usersAvatar = me.getAvatar();
+        Avatar usersAvatar = currentUser.getAvatar();
         if (usersAvatar == null) {
             throw new RuntimeException("You have no avatar");
         }
@@ -92,7 +92,33 @@ public class ImageServiceImpl implements ImageService {
 
         try {
             cloudinaryService.deleteImageByPublicId(image.getPublicId());
-        } catch (Exception ignore) { /* best effort */ }
+        } catch (Exception ignore) {}
+    }*/
+    @Override
+    @Transactional
+    public ProfileResponse deleteProfilePicture() {
+        Profile currentUser = authService.getCurrentProfile();
 
+        Avatar userAvatar = currentUser.getAvatar();
+        if (userAvatar == null) {
+            // ať je endpoint idempotentní – vrať aktuální profil
+            return profileMapper.toResponse(currentUser);
+        }
+
+        // 1) cloudinary – best effort
+        try {
+            cloudinaryService.deleteImageByPublicId(userAvatar.getPublicId());
+        } catch (Exception ignore) { }
+
+        // 2) odpoj z profilu (důležité kvůli FK avatar_id v profiles)
+        currentUser.setAvatar(null);
+        profileRepository.save(currentUser);
+
+        // 3) smaž řádek z avatars (můžeš spoléhat na orphanRemoval, ale explicitně je to nejčistší)
+        avatarRepository.delete(userAvatar);
+
+        // 4) vrať aktualizovaný stav
+        return profileMapper.toResponse(currentUser);
     }
+
 }

@@ -12,6 +12,5 @@ public class ArtistResponse {
 
     private Integer plays;
     private Integer numOfSongs;
-    // volitelné: rychlé info o písničkách (ne full entity!)
     private List<SongSummaryDto> songs;
 }
