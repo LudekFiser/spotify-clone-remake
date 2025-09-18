@@ -20,7 +20,7 @@ public class ArtistMapper {
         // NIKDY nevrátí null → stream -> toList() dá [] když nic není
         var songSummaries = artist.getSongs()
                 .stream()
-                .map(songMapper::toSongSummary)
+                .map(songMapper::toSongResponse)
                 .toList();
 
         return ArtistResponse.builder()

@@ -20,8 +20,6 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class UserEmailServiceImpl implements UserEmailService {
 
-
-    private final UserRepository userRepository;
     private final EmailService emailService;
     private final AuthService authService;
     private final OtpService otpService;
@@ -29,61 +27,61 @@ public class UserEmailServiceImpl implements UserEmailService {
 
     @Override
     public void sendPasswordResetCode() {
-        Profile me = authService.getCurrentProfile();
+        Profile currentProfile = authService.getCurrentProfile();
 
         // vygeneruj OTP
         String otp = otpService.generateOtp();
         LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(5);
 
-        me.setVerificationCode(otpService.encodeOtp(otp));
-        me.setVerificationCodeExpiration(expirationTime);
-        profileRepository.save(me);
+        currentProfile.setVerificationCode(otpService.encodeOtp(otp));
+        currentProfile.setVerificationCodeExpiration(expirationTime);
+        profileRepository.save(currentProfile);
 
         try {
-            emailService.sendResetPasswordCode(me.getEmail(), otp);
+            emailService.sendResetPasswordCode(currentProfile.getEmail(), otp);
         } catch (Exception ex) {
-            throw new RuntimeException("Unable to send reset password code to " + me.getEmail(), ex);
+            throw new RuntimeException("Unable to send reset password code to " + currentProfile.getEmail(), ex);
         }
     }
 
     @Override
     public void sendAccountVerificationCode() {
-        Profile me = authService.getCurrentProfile();
+        Profile currentProfile = authService.getCurrentProfile();
 
-        if (me.isVerified()) {
+        if (currentProfile.isVerified()) {
             throw new RuntimeException("Account is already verified");
         }
 
         String otp = otpService.generateOtp();
         LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(5);
 
-        me.setVerificationCode(otpService.encodeOtp(otp));
-        me.setVerificationCodeExpiration(expirationTime);
-        profileRepository.save(me);
+        currentProfile.setVerificationCode(otpService.encodeOtp(otp));
+        currentProfile.setVerificationCodeExpiration(expirationTime);
+        profileRepository.save(currentProfile);
 
         try {
-            emailService.sendAccountVerificationCode(me.getEmail(), otp);
+            emailService.sendAccountVerificationCode(currentProfile.getEmail(), otp);
         } catch (Exception ex) {
-            throw new RuntimeException("Unable to send account verification code to " + me.getEmail(), ex);
+            throw new RuntimeException("Unable to send account verification code to " + currentProfile.getEmail(), ex);
         }
     }
 
     @Override
     public void sendAccountDeletionCode() {
-        Profile me = authService.getCurrentProfile();
+        Profile currentProfile = authService.getCurrentProfile();
 
         String otp = otpService.generateOtp();
         System.out.println("GENERATED DELETE OTP: " + otp);
         LocalDateTime expirationTime = LocalDateTime.now().plusMinutes(5);
 
-        me.setVerificationCode(otpService.encodeOtp(otp));
-        me.setVerificationCodeExpiration(expirationTime);
-        profileRepository.save(me);
+        currentProfile.setVerificationCode(otpService.encodeOtp(otp));
+        currentProfile.setVerificationCodeExpiration(expirationTime);
+        profileRepository.save(currentProfile);
 
         try {
-            emailService.sendAccountDeletionCode(me.getEmail(), otp);
+            emailService.sendAccountDeletionCode(currentProfile.getEmail(), otp);
         } catch (Exception ex) {
-            throw new RuntimeException("Unable to send account deletion code to " + me.getEmail(), ex);
+            throw new RuntimeException("Unable to send account deletion code to " + currentProfile.getEmail(), ex);
         }
     }
 

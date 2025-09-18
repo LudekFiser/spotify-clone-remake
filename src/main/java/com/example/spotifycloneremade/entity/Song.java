@@ -2,7 +2,9 @@ package com.example.spotifycloneremade.entity;
 
 import com.example.spotifycloneremade.enums.SongType;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
@@ -68,6 +70,9 @@ public class Song {
 
     @OneToMany(mappedBy = "song")
     private List<SongImage> songImages = new ArrayList<>();
+
+    @Column(name = "likes")
+    private Integer likes;
 
 
     public static int getDurationFromMultipartFile(MultipartFile file) {

@@ -7,7 +7,6 @@ import com.example.spotifycloneremade.entity.Profile;
 import com.example.spotifycloneremade.mapper.ProfileMapper;
 import com.example.spotifycloneremade.repository.AvatarRepository;
 import com.example.spotifycloneremade.repository.ProfileRepository;
-import com.example.spotifycloneremade.repository.UserRepository;
 import com.example.spotifycloneremade.service.AuthService;
 import com.example.spotifycloneremade.service.ImageService;
 import com.example.spotifycloneremade.utils.cloudinary.CloudinaryService;
@@ -76,24 +75,6 @@ public class ImageServiceImpl implements ImageService {
         }
     }
 
-    /*@Override
-    @Transactional
-    public void deleteProfilePicture() {
-        Profile currentUser = authService.getCurrentProfile();
-
-        Avatar usersAvatar = currentUser.getAvatar();
-        if (usersAvatar == null) {
-            throw new RuntimeException("You have no avatar");
-        }
-
-        // pro jistotu načti z DB (když chceš validovat existenci)
-        Avatar image = avatarRepository.findById(usersAvatar.getId())
-                .orElseThrow(() -> new RuntimeException("Avatar not found"));
-
-        try {
-            cloudinaryService.deleteImageByPublicId(image.getPublicId());
-        } catch (Exception ignore) {}
-    }*/
     @Override
     @Transactional
     public ProfileResponse deleteProfilePicture() {

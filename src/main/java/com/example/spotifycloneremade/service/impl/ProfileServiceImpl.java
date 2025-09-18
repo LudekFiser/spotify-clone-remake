@@ -2,10 +2,7 @@ package com.example.spotifycloneremade.service.impl;
 
 import com.example.spotifycloneremade.dto.auth.*;
 import com.example.spotifycloneremade.dto.auth.resetPassword.ResetPasswordRequest;
-import com.example.spotifycloneremade.entity.Artist;
-import com.example.spotifycloneremade.entity.Profile;
-import com.example.spotifycloneremade.entity.Song;
-import com.example.spotifycloneremade.entity.User;
+import com.example.spotifycloneremade.entity.*;
 import com.example.spotifycloneremade.enums.ROLE;
 import com.example.spotifycloneremade.exception.*;
 import com.example.spotifycloneremade.mapper.ProfileMapper;
@@ -39,6 +36,7 @@ public class ProfileServiceImpl implements ProfileService {
     private final AuthService authService;
     private final SongRepository songRepository;
     private final SongMapper songMapper;
+    private final LikedSongRepository likedSongRepository;
 
 
     private boolean emailAlreadyUsed(String email) {
@@ -69,6 +67,7 @@ public class ProfileServiceImpl implements ProfileService {
         } else {
             var user = new User();
             user.setProfile(profile);
+            user.setLikedSongsCount(0);
             userRepository.save(user);
             profile.setUser(user);
         }
@@ -148,74 +147,10 @@ public class ProfileServiceImpl implements ProfileService {
         profileRepository.save(profile);
     }
 
+
+
+
     /*@Override
-    public List<SearchProfileResponse> findAllProfiles() {
-        return profileRepository.findAll()
-                .stream()
-                .map(profileMapper::toSearchResponse)
-                .toList();
-    }
-
-    @Override
-    public List<SearchProfileResponse> findAllArtists() {
-        return profileRepository.findAllByRole(ROLE.ARTIST)
-                .stream()
-                .map(profileMapper::toSearchResponse)
-                .toList();
-    }
-
-    @Override
-    public List<SearchProfileResponse> findAllUsers() {
-        return profileRepository.findAllByRole(ROLE.USER)
-                .stream()
-                .map(profileMapper::toSearchResponse)
-                .toList();
-    }*/
-    /*@Override
-    public List<SearchProfileResponse> searchProfiles(ROLE role, String name) {
-        List<Profile> profiles = profileRepository.findByRoleAndNameContainingIgnoreCase(role, name);
-        return profiles.stream()
-                .map(profileMapper::toSearchResponse)
-                .toList();
-    }*/
-
-    /*
-    @Override
-    public SearchResultResponse searchProfiles(ROLE role, String artistName, String songName) {
-        List<Profile> profiles;
-        List<Song> songs;
-
-        boolean isArtistNameEmpty = (artistName == null || artistName.isBlank());
-        boolean isSongNameEmpty = (songName == null || songName.isBlank());
-
-        if (isArtistNameEmpty && isSongNameEmpty) {
-            profiles = profileRepository.findByRoleOnly(role);
-            // se songy nic nedělej → nech prázdné
-            songs = profiles.stream()
-                    .filter(p -> p.getArtist() != null)
-                    .flatMap(p -> p.getArtist().getSongs().stream())
-                    .distinct()
-                    .toList();
-        } else {
-            profiles = profileRepository.findByRoleAndNameAndSong(role, artistName, songName);
-
-            if (!isSongNameEmpty) {
-                songs = songRepository.findByTitle(songName);
-            } else {
-                songs = profiles.stream()
-                        .filter(p -> p.getArtist() != null)
-                        .flatMap(p -> p.getArtist().getSongs().stream())
-                        .distinct()
-                        .toList();
-            }
-        }
-
-        return SearchResultResponse.builder()
-                .profiles(profiles.stream().map(profileMapper::toSearchResponse).toList())
-                .songs(songs.stream().map(songMapper::toSongSummary).toList())
-                .build();
-    }*/
-    @Override
     public SearchResultResponse searchProfiles(ROLE role, String artistName, String songName) {
         List<Profile> profiles = new ArrayList<>();
         List<Song> songs = new ArrayList<>();
@@ -274,7 +209,81 @@ public class ProfileServiceImpl implements ProfileService {
                 .profiles(profiles.stream().map(profileMapper::toSearchResponse).toList())
                 .songs(songs.stream().map(songMapper::toSongSummary).toList())
                 .build();
+    }*/
+
+    @Override
+    public SearchResultResponse searchProfiles(ROLE role, String artistName, String songName) {
+        List<Profile> profiles = new ArrayList<>();
+        List<Song> songs = new ArrayList<>();
+
+        boolean isArtistNameEmpty = (artistName == null || artistName.isBlank());
+        boolean isSongNameEmpty = (songName == null || songName.isBlank());
+
+        if (!isArtistNameEmpty) {
+            profiles = profileRepository.findByRoleAndName(role, artistName);
+
+            if (isSongNameEmpty) {
+                songs = profiles.stream()
+                        .filter(p -> p.getArtist() != null)
+                        .flatMap(p -> p.getArtist().getSongs().stream())
+                        .distinct()
+                        .toList();
+            }
+        }
+
+        if (!isSongNameEmpty) {
+            songs = songRepository.findByTitleWithArtistAndImage(songName);
+
+            List<Profile> songOwners = songs.stream()
+                    .map(Song::getArtist)
+                    .filter(Objects::nonNull)
+                    .map(Artist::getProfile)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .toList();
+
+            for (Profile p : songOwners) {
+                if (!profiles.contains(p)) {
+                    profiles.add(p);
+                }
+            }
+        }
+
+        if (isArtistNameEmpty && isSongNameEmpty) {
+            profiles = profileRepository.findByRoleOnly(role);
+
+            songs = profiles.stream()
+                    .filter(p -> p.getArtist() != null)
+                    .flatMap(p -> p.getArtist().getSongs().stream())
+                    .distinct()
+                    .toList();
+        }
+
+        // Získání přihlášeného uživatele (pokud je)
+        Profile currentProfile = null;
+        try {
+            currentProfile = authService.getCurrentProfile();
+        } catch (Exception ignored) {
+        }
+
+        Profile finalCurrentProfile = currentProfile;
+        return SearchResultResponse.builder()
+                .profiles(profiles.stream()
+                        .map(profileMapper::toSearchResponse)
+                        .toList())
+                .songs(songs.stream()
+                        .map(song -> {
+                            boolean isLiked = false;
+                            if (finalCurrentProfile != null) {
+                                isLiked = likedSongRepository.existsById(
+                                        new LikedSongId(finalCurrentProfile.getId(), song.getId()));
+                            }
+                            return songMapper.toSongSummary(song, isLiked);
+                        })
+                        .toList())
+                .build();
     }
+
 
 
 

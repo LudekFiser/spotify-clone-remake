@@ -42,7 +42,6 @@ public class AuthController {
     private final ProfileRepository profileRepository;
     private final ProfileMapper profileMapper;
 
-    // LOGIN
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request,
                                    HttpServletResponse response) {
@@ -79,7 +78,6 @@ public class AuthController {
         return issueTokens(response, profile);
     }
 
-    // VERIFY 2FA
     @PostMapping("/verify-2fa")
     public ResponseEntity<JwtResponse> verify2fa(
             @Valid @RequestBody TwoFARequest req,
@@ -169,20 +167,6 @@ public class AuthController {
     }
 
     /* ---------- private helpers ---------- */
-
-    /*private ResponseEntity<JwtResponse> issueTokens(HttpServletResponse response, Profile profile) {
-        var accessToken = jwtService.generateAccessToken(profile);
-        var refreshToken = jwtService.generateRefreshToken(profile);
-
-        var cookie = new Cookie("refreshToken", refreshToken.toString());
-        cookie.setHttpOnly(true);
-        cookie.setPath("/auth/refresh");
-        cookie.setMaxAge(jwtConfig.getRefreshTokenExpiration());
-        cookie.setSecure(true);
-        response.addCookie(cookie);
-
-        return ResponseEntity.ok(new JwtResponse(accessToken.toString()));
-    }*/
     private ResponseEntity<JwtResponse> issueTokens(HttpServletResponse response, Profile profile) {
         var accessToken  = jwtService.generateAccessToken(profile);
         var refreshToken = jwtService.generateRefreshToken(profile);

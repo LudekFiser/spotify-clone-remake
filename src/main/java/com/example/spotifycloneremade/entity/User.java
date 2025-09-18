@@ -3,7 +3,9 @@ package com.example.spotifycloneremade.entity;
 
 import com.example.spotifycloneremade.enums.ROLE;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.*;
 
@@ -23,6 +25,9 @@ public class User {
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "profile_id")
     private Profile profile;
+
+    @Column(name = "liked_songs_count")
+    private Integer likedSongsCount;
 
 
     public static boolean isAdult(LocalDate birthDate) {

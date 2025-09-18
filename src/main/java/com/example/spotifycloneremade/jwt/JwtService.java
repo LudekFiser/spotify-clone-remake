@@ -86,7 +86,9 @@ public class JwtService {
 
             // zkontroluj účel
             Boolean isTwoFa = parsed.get("twofa", Boolean.class);
-            if (isTwoFa == null || !isTwoFa) return null;
+            if (isTwoFa == null || !isTwoFa) {
+                return null;
+            }
 
             return Long.valueOf(parsed.getSubject()); // profileId
         } catch (Exception e) {

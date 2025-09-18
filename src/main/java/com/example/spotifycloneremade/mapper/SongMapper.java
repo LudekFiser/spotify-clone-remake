@@ -11,7 +11,9 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class SongMapper {
 
-    public SongSummaryDto toSongSummary(Song s) {
+    private final ImageMapper imageMapper;
+
+    public SongSummaryDto toSongSummary(Song s, boolean likedByCurrentUser) {
         return SongSummaryDto.builder()
                 .id(s.getId())
                 .title(s.getTitle())
@@ -19,6 +21,10 @@ public class SongMapper {
                 .releaseDate(s.getReleaseDate())
                 .plays(s.getPlays())
                 .url(s.getUrl())
+                .artistId(s.getArtist().getProfile().getId())
+                .artistName(s.getArtist().getProfile().getName())
+                .songImage(imageMapper.toSongImageDto(s.getSongImage()))
+                .likedByCurrentUser(likedByCurrentUser)
                 .build();
     }
 
@@ -29,6 +35,10 @@ public class SongMapper {
                 .title(s.getTitle())
                 .duration(s.getDuration())
                 .releaseDate(s.getReleaseDate())
+                .artistId(s.getArtist().getProfile().getId())
+                .artistName(s.getArtist().getProfile().getName())
+                .url(s.getUrl())
+                .songImage(imageMapper.toSongImageDto(s.getSongImage()))
                 .build();
     }
 

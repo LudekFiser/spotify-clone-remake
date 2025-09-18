@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Avatar {
+public class Avatar implements  ImageSource{
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

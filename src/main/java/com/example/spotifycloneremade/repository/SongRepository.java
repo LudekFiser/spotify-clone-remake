@@ -24,6 +24,12 @@ public interface SongRepository extends JpaRepository<Song, Long> {
 
 
 
-    @Query("SELECT s FROM Song s WHERE s.artist.profile.name = :name")
-    List<Song> findByArtist(@Param("name") String artistName);
+    /*@Query("SELECT s FROM Song s WHERE s.artist.profile.name = :name")
+    List<Song> findByArtist(@Param("name") String artistName);*/
+
+    @EntityGraph(attributePaths = {"artist.profile", "songImage"})
+    @Query("SELECT s FROM Song s WHERE s.artist.profile.id = :profileId")
+    List<Song> findByArtistId(@Param("profileId") Long artistId);
+
+
 }

@@ -102,7 +102,6 @@ public class SecurityConfig {
                 .logout(logout -> logout
                         .logoutUrl("/auth/logout")
                         .addLogoutHandler((req, res, auth) -> {
-                            // smaž cookie se STEJNÝM path, SameSite, Secure, HttpOnly…
                             ResponseCookie dead = ResponseCookie.from("refreshToken", "")
                                     .httpOnly(true)
                                     .secure(true)
