@@ -111,10 +111,9 @@ public class SongServiceImpl implements SongService {
             throw new AccessDeniedException("You are not allowed to perform this action");
         }
         var song = songRepository.findById(id).orElseThrow(UserNotFoundException::new);
-        if (song.getArtist().getProfileId().equals(currentUser.getArtist().getProfileId())) {
+        if (song.getArtist().getProfileId().equals(currentUser.getId())) {
             throw new AccessDeniedException("You are not allowed to play your own song");
         }
-        
         song.setPlays(song.getPlays() + 1);
         songRepository.save(song);
         return new PlaySongDto(song.getUrl());
